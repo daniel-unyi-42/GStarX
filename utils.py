@@ -22,6 +22,7 @@ from more_itertools import set_partitions
 from typing import Union, List
 from textwrap import wrap
 import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix
 
 
 def set_seed(seed):
@@ -393,19 +394,31 @@ def scores2coalition(scores, sparsity):
 def evaluate_coalition(explainer, data, coalition):
     device = explainer.device
     data = data.to(device)
+    # eredeti modell predikciói - két valószínűség
     pred_prob = explainer.model(data).softmax(dim=-1)
+    # prediktált osztály
     target_class = pred_prob.argmax(-1).item()
+    # prediktált osztály valószínűsége
     original_prob = pred_prob[:, target_class].item()
+
+    original_acc = (target_class == data.y).item() * 1
 
     num_nodes = data.num_nodes
     if len(coalition) == num_nodes:
         # Edge case: pick the graph itself as the explanation, for synthetic data
         masked_prob = original_prob
         maskout_prob = 0
+        
+        maskout_acc = 0
+        masked_acc = original_acc
+
     elif len(coalition) == 0:
         # Edge case: pick the empty set as the explanation, for synthetic data
         masked_prob = 0
         maskout_prob = original_prob
+
+        maskout_acc = original_acc
+        masked_acc = 0 
     else:
         mask = torch.zeros(num_nodes).type(torch.float32).to(device)
         mask[coalition] = 1.0
@@ -424,11 +437,28 @@ def evaluate_coalition(explainer, data, coalition):
         maskout_prob = (
             explainer.model(maskout_data).softmax(dim=-1)[:, target_class].item()
         )
+       
+          
+        maskout_acc = (explainer.model(maskout_data).argmax(axis=1) == data.y).item() * 1
+        masked_acc = (explainer.model(masked_data).argmax(axis=1) == data.y).item() * 1
+    
+    # CM matrix
+    cm = None
+    if hasattr(data, 'true'):
+        #Test
+        mask = torch.zeros(num_nodes).type(torch.float32).to(device)
+        mask[coalition] = 1.0
+        cm = confusion_matrix(data.true.cpu(), mask.cpu())
+
+    # Fidelity acc számolása
+    fidelity_acc =original_acc - maskout_acc
+    inv_fidelity_acc = original_acc - masked_acc
+
 
     fidelity = original_prob - maskout_prob
     inv_fidelity = original_prob - masked_prob
     sparsity = 1 - len(coalition) / num_nodes
-    return fidelity, inv_fidelity, sparsity
+    return fidelity, inv_fidelity, sparsity, fidelity_acc, inv_fidelity_acc, cm
 
 
 def fidelity_normalize_and_harmonic_mean(fidelity, inv_fidelity, sparsity):
@@ -475,19 +505,40 @@ def evaluate_scores_list(explainer, data_list, scores_list, sparsity, logger=Non
     n_inv_f_list = []
     sp_list = []
     h_f_list = []
+
+    fidelity_acc_list = []
+    inv_fidelity_acc_list = []
+    TP_counter = 0
+    FP_counter = 0
+    TN_counter = 0
+    FN_counter = 0
+
     for i, data in enumerate(data_list):
         node_scores = scores_list[i]
+        
         coalition = scores2coalition(node_scores, sparsity)
-        f, inv_f, sp = evaluate_coalition(explainer, data, coalition)
+        # végigmegy a gráfokon - mindegyikre visszakapjuk a fid, inv_fid, sp, h_f értékeket
+        f, inv_f, sp, fidelity_acc, inv_fidelity_acc, cm = evaluate_coalition(explainer, data, coalition)
         n_f, n_inv_f, h_f = fidelity_normalize_and_harmonic_mean(f, inv_f, sp)
 
+
+        fidelity_acc_list += [fidelity_acc]
+        inv_fidelity_acc_list += [inv_fidelity_acc]
         f_list += [f]
         inv_f_list += [inv_f]
         n_f_list += [n_f]
         n_inv_f_list += [n_inv_f]
         sp_list += [sp]
         h_f_list += [h_f]
+        if cm is not None:
+            TP_counter += cm[0][0]
+            FP_counter += cm[0][1]
+            TN_counter += cm[1][0]
+            FN_counter += cm[1][1]
 
+
+    fidelity_acc_mean = np.mean(fidelity_acc_list).item()
+    inv_fidelity_acc_mean = np.mean(inv_fidelity_acc_list).item()
     f_mean = np.mean(f_list).item()
     inv_f_mean = np.mean(inv_f_list).item()
     n_f_mean = np.mean(n_f_list).item()
@@ -497,15 +548,25 @@ def evaluate_scores_list(explainer, data_list, scores_list, sparsity, logger=Non
 
     if logger is not None:
         logger.info(
-            f"Fidelity Mean: {f_mean:.4f}\n"
+            f"\nFidelity Mean: {f_mean:.4f}\n"
             f"Inv-Fidelity Mean: {inv_f_mean:.4f}\n"
             f"Norm-Fidelity Mean: {n_f_mean:.4f}\n"
             f"Norm-Inv-Fidelity Mean: {n_inv_f_mean:.4f}\n"
             f"Sparsity Mean: {sp_mean:.4f}\n"
             f"Harmonic-Fidelity Mean: {h_f_mean:.4f}\n"
+            f"Fidelity Acc Mean: {fidelity_acc_mean:.4f}\n"
+            f"Inv-Fidelity Acc Mean: {inv_fidelity_acc_mean:.4f}\n"
         )
 
-    return sp_mean, f_mean, inv_f_mean, n_f_mean, n_inv_f_mean, h_f_mean
+    if logger is not None and cm is not None:
+        logger.info(
+            f"\nTP all: {TP_counter}\n"
+            f"FP all: {FP_counter}\n"
+            f"TN all: {TN_counter}\n"
+            f"FN all: {FN_counter}\n"
+        )
+
+    return sp_mean, f_mean, inv_f_mean, n_f_mean, n_inv_f_mean, h_f_mean, fidelity_acc_mean, inv_fidelity_acc_mean
 
 
 """

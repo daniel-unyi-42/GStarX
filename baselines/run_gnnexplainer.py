@@ -44,6 +44,7 @@ def pipeline(config):
     dataset = get_dataset(config.datasets.dataset_root, config.datasets.dataset_name)
     dataset.data.x = dataset.data.x.float()
     dataset.data.y = dataset.data.y.squeeze().long()
+   
     if config.models.param.graph_classification:
         dataloader_params = {
             "batch_size": config.models.param.batch_size,
@@ -100,17 +101,24 @@ def pipeline(config):
         idx = test_indices[i]
         data.to(device)
         prediction = model(data).argmax(-1).item()
+        true_data = None
+        if hasattr(data, 'true'):
+            true_data = data.true
+
         example_path = os.path.join(explanation_saving_path, f"example_{idx}.pt")
         if not IS_FRESH and os.path.isfile(example_path):
             edge_masks = torch.load(os.path.join(example_path))
             edge_masks = [edge_mask.to(device) for edge_mask in edge_masks]
             logger.debug(f"Load example {idx}.")
+           
             edge_masks, hard_edge_masks, related_preds = gnn_explainer(
                 data.x,
                 data.edge_index,
                 sparsity=config.explainers.sparsity,
                 num_classes=dataset.num_classes,
                 edge_masks=edge_masks,
+                y = data.y,
+                true_explanation = true_data
             )
         else:
             edge_masks, hard_edge_masks, related_preds = gnn_explainer(
@@ -118,6 +126,8 @@ def pipeline(config):
                 data.edge_index,
                 sparsity=config.explainers.sparsity,
                 num_classes=dataset.num_classes,
+                y = data.y,
+                true_explanation = true_data
             )
             edge_masks = [edge_mask.to("cpu") for edge_mask in edge_masks]
             torch.save(edge_masks, example_path)

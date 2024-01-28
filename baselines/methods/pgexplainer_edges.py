@@ -14,10 +14,10 @@ class PGExplainer_edges(ExplainerBase):
         self.explainer = pgexplainer
 
     def forward(
-        self, x: Tensor, edge_index: Tensor, **kwargs
+        self, x: Tensor, edge_index: Tensor, y, **kwargs
     ) -> Tuple[List, List, List[Dict]]:
         # set default subgraph with 10 edges
-
+        
         num_classes = kwargs.get("num_classes")
         self.model.eval()
         self.explainer.__clear_masks__()
@@ -72,15 +72,15 @@ class PGExplainer_edges(ExplainerBase):
             self.control_sparsity(edge_mask, sparsity=sparsity).sigmoid()
             for _ in range(num_classes)
         ]
-
+        
         self.__clear_masks__()
         self.__set_masks__(x, edge_index)
         with torch.no_grad():
             if self.explain_graph:
-                related_preds = self.eval_related_pred(x, edge_index, hard_edge_masks)
+                related_preds = self.eval_related_pred(x, edge_index, hard_edge_masks, y=y, true_explanation=kwargs.get("true_explanation") )
             else:
                 related_preds = self.eval_related_pred(
-                    x, edge_index, hard_edge_masks, node_idx=new_node_idx
+                    x, edge_index, y, hard_edge_masks, node_idx=new_node_idx, y=y, true_explanation=kwargs.get("true_explanation") 
                 )
 
         self.__clear_masks__()

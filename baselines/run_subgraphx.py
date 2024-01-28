@@ -111,6 +111,9 @@ def pipeline(config):
         saved_MCTSInfo_list = None
         prediction = model(data).argmax(-1).item()
         example_path = os.path.join(explanation_saving_path, f"example_{idx}.pt")
+        true_data = None
+        if hasattr(data, 'true'):
+            true_data = data.true
         if not IS_FRESH and os.path.isfile(example_path):
             saved_MCTSInfo_list = torch.load(os.path.join(example_path))
             logger.debug(f"Load example {idx}.")
@@ -119,9 +122,13 @@ def pipeline(config):
         explain_result, related_preds = subgraphx.explain(
             data.x,
             data.edge_index,
+            y = data.y,
             max_nodes=max_nodes,
             label=prediction,
             saved_MCTSInfo_list=saved_MCTSInfo_list,
+            true_explanation = true_data
+
+           
         )
 
         torch.save(explain_result, example_path)

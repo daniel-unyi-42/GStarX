@@ -196,7 +196,8 @@ class GNNExplainer(ExplainerBase):
 
         return self.edge_mask.data
 
-    def forward(self, x, edge_index, mask_features=False, **kwargs):
+    def forward(self, x, edge_index,  mask_features=False, **kwargs):
+  
         r"""
         Run the explainer for a specific graph instance.
         Args:

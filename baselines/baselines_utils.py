@@ -51,9 +51,15 @@ def evaluate_related_preds(related_preds):
     maskout_prob = related_preds["maskout"]
     sparsity = related_preds["sparsity"]
 
+    fidelity_acc = related_preds["origin_acc"] - related_preds["maskout_acc"]
+    inv_fidelity_acc = related_preds["origin_acc"] - related_preds["masked_acc"]
+
     fidelity = original_prob - maskout_prob
     inv_fidelity = original_prob - masked_prob
-    return fidelity, inv_fidelity, sparsity
+
+    cm = related_preds["cm"]
+    return fidelity, inv_fidelity, sparsity, fidelity_acc, inv_fidelity_acc, cm
+        
 
 
 def evaluate_related_preds_list(related_preds_list, logger=None):
@@ -70,8 +76,16 @@ def evaluate_related_preds_list(related_preds_list, logger=None):
     n_inv_f_list = []
     sp_list = []
     h_f_list = []
+    fidelity_acc_list = []
+    inv_fidelity_acc_list = []
+    TP_counter = 0
+    FP_counter = 0
+    TN_counter = 0
+    FN_counter = 0
+
     for related_preds in related_preds_list:
-        f, inv_f, sp = evaluate_related_preds(related_preds)
+        #ENnek kéne visszadnia őket
+        f, inv_f, sp, fidelity_acc, inv_fidelity_acc, cm = evaluate_related_preds(related_preds)
         n_f, n_inv_f, h_f = fidelity_normalize_and_harmonic_mean(f, inv_f, sp)
         f_list += [f]
         inv_f_list += [inv_f]
@@ -79,21 +93,44 @@ def evaluate_related_preds_list(related_preds_list, logger=None):
         n_inv_f_list += [n_inv_f]
         sp_list += [sp]
         h_f_list += [h_f]
+        fidelity_acc_list += [fidelity_acc]
+        inv_fidelity_acc_list += [inv_fidelity_acc]
+        if cm is not None:
+            TP_counter += cm[0][0]
+            FP_counter += cm[0][1]
+            TN_counter += cm[1][0]
+            FN_counter += cm[1][1]
+
+    #print(fidelity_acc_list)
+    fidelity_acc_mean = np.mean(fidelity_acc_list).item()
+    inv_fidelity_acc_mean = np.mean(inv_fidelity_acc_list).item()
 
     f_mean = np.mean(f_list).item()
+
     inv_f_mean = np.mean(inv_f_list).item()
     n_f_mean = np.mean(n_f_list).item()
     n_inv_f_mean = np.mean(n_inv_f_list).item()
     sp_mean = np.mean(sp_list).item()
     h_f_mean = np.mean(h_f_list).item()
 
+
     if logger is not None:
         logger.info(
-            f"Fidelity Mean: {f_mean:.4f}\n"
+            f"\nFidelity Mean: {f_mean:.4f}\n"
             f"Inv-Fidelity Mean: {inv_f_mean:.4f}\n"
             f"Norm-Fidelity Mean: {n_f_mean:.4f}\n"
             f"Norm-Inv-Fidelity Mean: {n_inv_f_mean:.4f}\n"
             f"Sparsity Mean: {sp_mean:.4f}\n"
             f"Harmonic-Fidelity Mean: {h_f_mean:.4f}\n"
+            f"Fidelity Acc Mean: {fidelity_acc_mean:.4f}\n"
+            f"Inv-Fidelity Acc Mean: {inv_fidelity_acc_mean:.4f}\n"
+        )
+
+    if logger is not None and cm is not None:
+        logger.info(
+            f"\nTP all: {TP_counter}\n"
+            f"FP all: {FP_counter}\n"
+            f"TN all: {TN_counter}\n"
+            f"FN all: {FN_counter}\n"
         )
     return sp_mean, f_mean, inv_f_mean, n_f_mean, n_inv_f_mean, h_f_mean

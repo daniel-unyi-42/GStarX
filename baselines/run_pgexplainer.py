@@ -139,11 +139,16 @@ def pipeline(config):
         idx = test_indices[i]
         data.to(device)
         prediction = model(data).softmax(dim=-1).argmax().item()
+        true_data = None
+        if hasattr(data, 'true'):
+            true_data = data.true
         edge_masks, hard_edge_masks, related_preds = pgexplainer_edges(
             data.x,
             data.edge_index,
+            y = data.y, # Ground truth label !!
             num_classes=dataset.num_classes,
             sparsity=config.explainers.sparsity,
+            true_explanation = true_data
         )
 
         related_preds = related_preds[prediction]

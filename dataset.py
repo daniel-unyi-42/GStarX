@@ -8,15 +8,22 @@ from dig.xgraph.dataset import (
     SentiGraphDataset,
     BA_LRP,
 )
+from BA2MotifDataset import BA2MotifDataset
+from BAMultiShapesDataset import BAMultiShapesDataset
+from AlkaneCarbonylDataset import AlkaneCarbonylDataset
+from BenzeneDataset import BenzeneDataset
+from FluorideCarbonylDataset import FluorideCarbonylDataset
 
 import os
 import torch
 import pickle
 import numpy as np
 import os.path as osp
-from torch_geometric.utils import dense_to_sparse
+import networkx as nx
+from torch_geometric.utils import dense_to_sparse, remove_self_loops, to_networkx
 from torch_geometric.data import Data, InMemoryDataset, download_url, extract_zip
 from torch_geometric.data.dataset import files_exist
+import torch_geometric.transforms as T
 import shutil
 
 
@@ -25,8 +32,41 @@ def get_dataset(dataset_root, dataset_name):
         return MoleculeDataset(root=dataset_root, name=dataset_name)
     elif dataset_name.lower() in ["graph_sst2", "graph_sst5", "twitter"]:
         return SentiGraphDataset(root=dataset_root, name=dataset_name)
+    elif dataset_name.lower() in ["ba_2motifs"]:
+        class RemoveSelfLoops(object):
+            def __call__(self, data):
+                data.edge_index, _ = remove_self_loops(data.edge_index)
+                return data
+        class AddTrueExplanation(object):
+            def __call__(self, data):
+                data.true = torch.zeros(data.num_nodes)
+                data.true[-5:] = 1
+                return data
+        transform = T.Compose([RemoveSelfLoops(), AddTrueExplanation()])
+        return BA2MotifDataset(root=os.path.join(dataset_root, dataset_name), transform=transform)
+    elif dataset_name.lower() in ["ba_multishapes"]:
+        class AddTrueExplanation(object):
+            def __call__(self, data):
+                def subgraph_matching(G, g):
+                    gm = nx.algorithms.isomorphism.GraphMatcher(G, g)
+                    return list(gm.mapping.keys()) if gm.subgraph_is_isomorphic() else []
+                data.true = torch.zeros(data.num_nodes)
+                G1 = to_networkx(data, to_undirected=True)
+                g2 = nx.generators.small.house_graph()
+                g3 = nx.generators.lattice.grid_2d_graph(3, 3)
+                g4 = nx.generators.classic.wheel_graph(6)
+                gm2 = subgraph_matching(G1, g2)
+                gm3 = subgraph_matching(G1, g3)
+                gm4 = subgraph_matching(G1, g4)
+                data.true[gm2 + gm3 + gm4] = 1.0
+                return data
+        return BAMultiShapesDataset(root=os.path.join(dataset_root, dataset_name), transform=AddTrueExplanation())
     elif dataset_name.lower() in list(SynGraphDataset.names.keys()):
-        return SynGraphDataset(root=dataset_root, name=dataset_name)
+        class RemoveSelfLoops(object):
+            def __call__(self, data):
+                data.edge_index, _ = remove_self_loops(data.edge_index)
+                return data
+        return SynGraphDataset(root=dataset_root, name=dataset_name, transform=RemoveSelfLoops())
     elif dataset_name.lower() in ["ba_lrp"]:
         return BA_LRP(root=dataset_root)
     else:

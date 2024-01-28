@@ -18,6 +18,7 @@ from torch_geometric.utils.num_nodes import maybe_num_nodes
 from torch_geometric.nn.conv import MessagePassing
 from torch_geometric.datasets import MoleculeNet
 from torch_geometric.utils import remove_self_loops
+from sklearn.metrics import confusion_matrix
 from .shapley import (
     GnnNetsGC2valueFunc,
     GnnNetsNC2valueFunc,
@@ -952,10 +953,12 @@ class SubgraphX(object):
         self,
         x: Tensor,
         edge_index: Tensor,
+        y: Tensor,
         label: int,
         max_nodes: int = 5,
         node_idx: Optional[int] = None,
         saved_MCTSInfo_list: Optional[List[List]] = None,
+        true_explanation: Optional[Tensor] = None,
     ):
 
         probs = self.model(x, edge_index).squeeze().softmax(dim=-1)
@@ -986,6 +989,7 @@ class SubgraphX(object):
                 self.model,
                 node_idx=self.mcts_state_map.new_node_idx,
                 target_class=label,
+                
             )
 
             if not saved_MCTSInfo_list:
@@ -1014,18 +1018,20 @@ class SubgraphX(object):
         if not self.explain_graph:
             maskout_node_list += [self.new_node_idx]
 
-        masked_score = gnn_score(
+        masked_score, masked_acc = gnn_score(
             masked_node_list,
             tree_node_x.data,
             value_func=value_func,
             subgraph_building_method=self.subgraph_building_method,
+            y = y
         )
 
-        maskout_score = gnn_score(
+        maskout_score, maskout_acc = gnn_score(
             maskout_node_list,
             tree_node_x.data,
             value_func=value_func,
             subgraph_building_method=self.subgraph_building_method,
+            y = y
         )
 
         sparsity_score = sparsity(
@@ -1035,11 +1041,22 @@ class SubgraphX(object):
         )
 
         results = self.write_from_MCTSNode_list(results)
+
+        cm = None
+        if true_explanation is not None:
+            selected_nodes_one_hot = torch.zeros(true_explanation.shape[0], dtype=torch.int)
+            selected_nodes_one_hot[masked_node_list] = 1
+            cm = confusion_matrix(true_explanation.cpu(), selected_nodes_one_hot.cpu())
+
         related_pred = {
             "masked": masked_score,
             "maskout": maskout_score,
             "origin": probs[node_idx, label].item(),
             "sparsity": sparsity_score,
+            "origin_acc": (probs.softmax(-1).argmax(axis=0)==y).item() *1,
+            'masked_acc': masked_acc,
+            'maskout_acc': maskout_acc,
+            'cm': cm
         }
 
         return results, related_pred

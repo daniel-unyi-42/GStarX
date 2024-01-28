@@ -32,6 +32,9 @@ param:
   ba_2motifs:
     lr: 0.01
     epochs: 1000
+  ba_multishapes:
+    lr: 0.01
+    epochs: 1000
   bace:
     lr: 0.01
     epochs: 1000

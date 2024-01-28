@@ -2,6 +2,50 @@ gnn_saving_path: 'checkpoints'
 gnn_name: 'gin'
 
 param:
+  ba_2motifs:
+    learning_rate: 0.001
+    weight_decay: 0.0
+    milestones: None
+    gamma: None
+    batch_size: 64
+    num_epochs: 100
+    num_early_stop: 100
+    gnn_latent_dim:
+      - 64
+      - 64
+      - 64
+      - 64
+    gnn_dropout: 0.0
+    add_self_loop: False
+    gnn_emb_normalization: False
+    graph_classification: True
+    node_classification: False
+    readout: 'mean'
+    fc_latent_dim: [64]
+    fc_dropout: 0.0
+    fc_nonlinear: 'relu'
+  ba_multishapes:
+    learning_rate: 0.001
+    weight_decay: 0.0
+    milestones: None
+    gamma: None
+    batch_size: 64
+    num_epochs: 100
+    num_early_stop: 100
+    gnn_latent_dim:
+      - 64
+      - 64
+      - 64
+      - 64
+    gnn_dropout: 0.0
+    add_self_loop: False
+    gnn_emb_normalization: False
+    graph_classification: True
+    node_classification: False
+    readout: 'mean'
+    fc_latent_dim: [64]
+    fc_dropout: 0.0
+    fc_nonlinear: 'relu'
   mutag:
     learning_rate: 0.005
     weight_decay: 0.0
@@ -23,3 +67,46 @@ param:
     fc_latent_dim: []
     fc_dropout: 0.0
     fc_nonlinear: 'relu'
+  bbbp:
+    learning_rate: 0.005
+    weight_decay: 0.0
+    milestones: None
+    gamma: None
+    batch_size: 64
+    num_epochs: 800
+    num_early_stop: 200
+    gnn_latent_dim:
+      - 128
+      - 128
+      - 128
+    gnn_dropout: 0
+    add_self_loop: False
+    gnn_emb_normalization: False
+    graph_classification: True
+    node_classification: False
+    readout: 'max'
+    fc_latent_dim: []
+    fc_dropout: 0.0
+    fc_nonlinear: 'relu'
+  bace:
+    learning_rate: 0.001
+    weight_decay: 0.0
+    milestones: None
+    gamma: None
+    batch_size: 64
+    num_epochs: 400
+    num_early_stop: 100
+    gnn_latent_dim:
+      - 128
+      - 128
+      - 128
+    gnn_dropout: 0
+    add_self_loop: False
+    gnn_emb_normalization: False
+    graph_classification: True
+    node_classification: False
+    readout: 'max'
+    fc_latent_dim: []
+    fc_dropout: 0.0
+    fc_nonlinear: 'relu'
+

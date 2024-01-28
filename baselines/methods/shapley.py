@@ -17,12 +17,16 @@ from torch_geometric.data import Data, Batch, Dataset, DataLoader
 
 
 def GnnNetsGC2valueFunc(gnnNets, target_class):
-    def value_func(batch):
+    def value_func(batch, y = None):
         with torch.no_grad():
+            
             logits = gnnNets(data=batch)
             probs = F.softmax(logits, dim=-1)
             score = probs[:, target_class]
-        return score
+            IsGoodPrediction = probs.argmax(axis=-1) == y 
+        if y == None:
+            return score    
+        return score, IsGoodPrediction
 
     return value_func
 
@@ -34,8 +38,8 @@ def GnnNetsNC2valueFunc(gnnNets_NC, node_idx, target_class):
             probs = F.softmax(logits, dim=-1)
             # select the corresponding node prob through the node idx on all the sampling graphs
             batch_size = data.batch.max() + 1
-            probs = probs.reshape(batch_size, -1, probs.shape[-1])
-            score = probs[:, node_idx, target_class]
+            probs = probs.reshape(batch_size, -1, probs.shape[-1])     
+            score = probs[:, node_idx, target_class]       
             return score
 
     return value_func
@@ -316,6 +320,7 @@ def gnn_score(
     data: Data,
     value_func: str,
     subgraph_building_method="zero_filling",
+    y=None,
 ) -> torch.Tensor:
     """the value of subgraph with selected nodes"""
     num_nodes = data.num_nodes
@@ -326,9 +331,9 @@ def gnn_score(
     mask_data = Data(x=ret_x, edge_index=ret_edge_index)
     mask_data = Batch.from_data_list([mask_data])
 
-    score = value_func(mask_data)
+    score, acc = value_func(mask_data, y)
     # get the score of predicted class for graph or specific node idx
-    return score.item()
+    return score.item(), acc.item() *1
 
 
 def NC_mc_l_shapley(

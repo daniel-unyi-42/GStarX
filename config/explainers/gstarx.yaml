@@ -52,4 +52,9 @@ param:
     max_sample_size: 10
     tau: 0.01
     subgraph_building_method: 'split'
+  ba_multishapes:
+    payoff_type: 'norm_prob'
+    max_sample_size: 10
+    tau: 0.01
+    subgraph_building_method: 'remove'
     

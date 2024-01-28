@@ -11,7 +11,7 @@ from torch_geometric.utils import to_networkx
 from rdkit import Chem
 from matplotlib.axes import Axes
 from typing import List, Tuple
-
+from sklearn.metrics import confusion_matrix
 
 EPS = 1e-15
 """
@@ -383,7 +383,8 @@ class ExplainerBase(nn.Module):
     def eval_related_pred(
         self, x: Tensor, edge_index: Tensor, edge_masks: List[Tensor], **kwargs
     ):
-
+        y = kwargs.get("y").item()
+        y_true = kwargs.get("true_explanation")
         node_idx = kwargs.get("node_idx")
         node_idx = (
             0 if node_idx is None else node_idx
@@ -392,6 +393,7 @@ class ExplainerBase(nn.Module):
 
         # change the mask from -inf ~ +inf into 0 ~ 1
         for ex_label, edge_mask in enumerate(edge_masks):
+           # print(ex_label, edge_mask)
             #             if self.hard_edge_mask is not None:
             #                 sparsity = 1.0 - (edge_mask[self.hard_edge_mask] != 0).sum() / edge_mask[self.hard_edge_mask].size(0)
             #             else:
@@ -410,6 +412,7 @@ class ExplainerBase(nn.Module):
                 )
                 selected_edge_index = self_loop_edge_index[:, edge_mask.bool()]
 
+            #####
             selected_nodes = selected_edge_index.view(-1).unique()
             sparsity = torch.tensor(1.0 - selected_nodes.shape[0] / x.shape[0])
             """
@@ -417,9 +420,11 @@ class ExplainerBase(nn.Module):
             """
 
             self.edge_mask.data = torch.ones(edge_mask.size(), device=self.device)
+            #original prediction
             ori_pred = self.model(x=x, edge_index=edge_index, **kwargs)
 
             self.edge_mask.data = edge_mask
+            # masked prediction
             masked_pred = self.model(x=x, edge_index=edge_index, **kwargs)
 
             # mask out important elements for fidelity calculation
@@ -429,7 +434,7 @@ class ExplainerBase(nn.Module):
             # zero_mask
             self.edge_mask.data = torch.zeros(edge_mask.size(), device=self.device)
             zero_mask_pred = self.model(x=x, edge_index=edge_index, **kwargs)
-
+            # itt hozzaadjuk mindegyik predikciót
             related_preds.append(
                 {
                     "zero": zero_mask_pred[node_idx],
@@ -439,14 +444,29 @@ class ExplainerBase(nn.Module):
                     "sparsity": sparsity,
                 }
             )
-
             # Adding proper activation function to the models' outputs.
             tmp_result_dict = {}
+
+    
             for key, pred in related_preds[ex_label].items():
+                #print(key) # - zero, masked ... 
+                #print("_______")
+                #print(pred) - a két valószínűségi érték
                 if key in ["sparsity"]:
                     tmp_result_dict[key] = pred.item()
                 else:
                     tmp_result_dict[key] = pred.reshape(-1).softmax(0)[ex_label].item()
+                    # Itt nézem meg hogy az adott predikció helyes osztályba esik-e
+                    tmp_result_dict[key + "_acc"] = (pred.softmax(-1).argmax(axis=-1)==y).item() *1
+          
+           
+            cm = None
+            if y_true != None:            
+                selected_nodes_one_hot = torch.zeros(y_true.shape[0], dtype=torch.int)
+                selected_nodes_one_hot[selected_nodes] = 1
+                cm = confusion_matrix(y_true.cpu(), selected_nodes_one_hot.cpu())
+                
+            tmp_result_dict["cm"] = cm
             related_preds[ex_label] = tmp_result_dict
 
         self.__clear_masks__()

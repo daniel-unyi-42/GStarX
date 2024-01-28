@@ -225,6 +225,7 @@ def main(config):
     print(max([d.num_nodes for d in dataset]))
 
     model = get_gnnNets(dataset.num_node_features, dataset.num_classes, config.models)
+    print(model)
     train_params = {
         "num_epochs": config.models.param.num_epochs,
         "num_early_stop": config.models.param.num_early_stop,
