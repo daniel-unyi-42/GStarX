@@ -130,7 +130,7 @@ def evaluate_related_preds_list(related_preds_list, logger=None):
         logger.info(
             f"\nTP all: {TP_counter}\n"
             f"FP all: {FP_counter}\n"
-            f"TN all: {FN_counter}\n"
-            f"FN all: {TN_counter}\n"
+            f"FN all: {FN_counter}\n"
+            f"TN all: {TN_counter}\n"
         )
     return sp_mean, f_mean, inv_f_mean, n_f_mean, n_inv_f_mean, h_f_mean, fidelity_acc_mean, inv_fidelity_acc_mean, TP_counter, FP_counter, FN_counter, TN_counter
