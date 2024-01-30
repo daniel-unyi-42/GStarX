@@ -10,4 +10,5 @@
 **/experiments
 **/temp
 datasets/*
+dataset/*
 !config

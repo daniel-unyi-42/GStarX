@@ -44,3 +44,10 @@ param:
   ba_shapes_2hop_graph:
     lr: 0.01
     epochs: 1000
+  MNIST:
+    lr: 0.01
+    epochs: 1000
+  benzene:
+    lr: 0.01
+    epochs: 1000
+  

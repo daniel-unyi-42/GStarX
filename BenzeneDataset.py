@@ -24,7 +24,7 @@ class BenzeneDataset(InMemoryDataset):
     def process(self):
         data_list = []
         data = np.load(f'{self.raw_dir}/{self.raw_file_names}', allow_pickle=True)
-        X, y = data['X'], data['y']
+        attr, X, y = data['attr'], data['X'], data['y']
         ylist = [y[i][0] for i in range(y.shape[0])]
         X = X[0]
         for i in range(len(X)):
@@ -34,11 +34,13 @@ class BenzeneDataset(InMemoryDataset):
             e1 = torch.from_numpy(X[i]['receivers']).long()
             e2 = torch.from_numpy(X[i]['senders']).long()
             edge_index = torch.stack([e1, e2])
+            true = torch.from_numpy(attr[i][0]['nodes']).float()
             data = Data(
                 x = x,
                 y = y,
                 edge_attr = edge_attr,
-                edge_index = edge_index
+                edge_index = edge_index,
+                true = true,
             )
             data_list.append(data)
         if self.pre_filter is not None:

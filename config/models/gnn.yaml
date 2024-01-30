@@ -1,0 +1,112 @@
+gnn_saving_path: 'checkpoints'
+gnn_name: 'gnn'
+
+param:
+  ba_2motifs:
+    learning_rate: 0.001
+    weight_decay: 0.0
+    milestones: None
+    gamma: None
+    batch_size: 64
+    num_epochs: 100
+    num_early_stop: 100
+    node_classification: False
+    graph_classification: True
+    gnn_latent_dim: [64, 64, 64, 64]
+    fc_latent_dim: [64]
+  ba_multishapes:
+    learning_rate: 0.001
+    weight_decay: 0.0
+    milestones: None
+    gamma: None
+    batch_size: 64
+    num_epochs: 100
+    num_early_stop: 100
+    node_classification: False
+    graph_classification: True
+    gnn_latent_dim: [64, 64, 64, 64]
+    fc_latent_dim: [64]
+  bace:
+    learning_rate: 0.001
+    weight_decay: 0.0
+    milestones: None
+    gamma: None
+    batch_size: 64
+    num_epochs: 100
+    num_early_stop: 100
+    node_classification: False
+    graph_classification: True
+    gnn_latent_dim: [128, 128, 128, 128]
+    fc_latent_dim: [128]
+  bbbp:
+    learning_rate: 0.001
+    weight_decay: 0.0
+    milestones: None
+    gamma: None
+    batch_size: 64
+    num_epochs: 100
+    num_early_stop: 100
+    node_classification: False
+    graph_classification: True
+    gnn_latent_dim: [128, 128, 128, 128]
+    fc_latent_dim: [128]
+  mutag:
+    learning_rate: 0.001
+    weight_decay: 0.0
+    milestones: None
+    gamma: None
+    batch_size: 64
+    num_epochs: 100
+    num_early_stop: 100
+    node_classification: False
+    graph_classification: True
+    gnn_latent_dim: [128, 128, 128, 128]
+    fc_latent_dim: [128]
+  graph_sst2:
+    learning_rate: 0.001
+    weight_decay: 0.0
+    milestones: None
+    gamma: None
+    batch_size: 64
+    num_epochs: 100
+    num_early_stop: 100
+    node_classification: False
+    graph_classification: True
+    gnn_latent_dim: [256, 256, 256, 256]
+    fc_latent_dim: [256]
+  twitter:
+    learning_rate: 0.001
+    weight_decay: 0.0
+    milestones: None
+    gamma: None
+    batch_size: 64
+    num_epochs: 100
+    num_early_stop: 100
+    node_classification: False
+    graph_classification: True
+    gnn_latent_dim: [256, 256, 256, 256]
+    fc_latent_dim: [256]
+  MNIST:
+    learning_rate: 0.001
+    weight_decay: 0.0
+    milestones: None
+    gamma: None
+    batch_size: 64
+    num_epochs: 100
+    num_early_stop: 100
+    node_classification: False
+    graph_classification: True
+    gnn_latent_dim: [256, 256, 256, 256]
+    fc_latent_dim: [256]
+  benzene:
+    learning_rate: 0.001
+    weight_decay: 0.0
+    milestones: None
+    gamma: None
+    batch_size: 64
+    num_epochs: 100
+    num_early_stop: 100
+    node_classification: False
+    graph_classification: True
+    gnn_latent_dim: [64, 64, 64, 64]
+    fc_latent_dim: [64]

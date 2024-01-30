@@ -10,9 +10,9 @@ from dig.xgraph.dataset import (
 )
 from BA2MotifDataset import BA2MotifDataset
 from BAMultiShapesDataset import BAMultiShapesDataset
-from AlkaneCarbonylDataset import AlkaneCarbonylDataset
 from BenzeneDataset import BenzeneDataset
-from FluorideCarbonylDataset import FluorideCarbonylDataset
+from torch_geometric.datasets import GNNBenchmarkDataset
+
 
 import os
 import torch
@@ -31,7 +31,15 @@ def get_dataset(dataset_root, dataset_name):
     if dataset_name.lower() in list(MoleculeDataset.names.keys()):
         return MoleculeDataset(root=dataset_root, name=dataset_name)
     elif dataset_name.lower() in ["graph_sst2", "graph_sst5", "twitter"]:
-        return SentiGraphDataset(root=dataset_root, name=dataset_name)
+        return SentiGraphDataset(root=dataset_root, name=dataset_name, pre_transform=T.ToUndirected())
+    elif dataset_name.lower() in ["mnist"]:
+        return GNNBenchmarkDataset(root=dataset_root, name=dataset_name)
+    elif dataset_name.lower() in ["benzene"]:
+        class AddTrueExplanation(object):
+            def __call__(self, data):
+                data.true = torch.any(data.true, dim=1).float()
+                return data
+        return BenzeneDataset(root=os.path.join(dataset_root, dataset_name), pre_transform=AddTrueExplanation())
     elif dataset_name.lower() in ["ba_2motifs"]:
         class RemoveSelfLoops(object):
             def __call__(self, data):

@@ -119,3 +119,21 @@ param:
     t0: 5.0
     t1: 1.0
     undirected: True
+
+  MNIST:
+    ex_learing_rate: 3e-3
+    ex_epochs: 20
+    coff_size: 0.01
+    coff_ent: 5e-4
+    t0: 5.0
+    t1: 1.0
+    undirected: True
+
+  benzene:
+    ex_learing_rate: 3e-3
+    ex_epochs: 20
+    coff_size: 0.03
+    coff_ent: 5e-4
+    t0: 5.0
+    t1: 1.0
+    undirected: True

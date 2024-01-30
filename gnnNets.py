@@ -6,7 +6,9 @@ from typing import Union, Callable, List, Tuple
 from torch import Tensor
 from torch_sparse import SparseTensor, fill_diag
 from torch_geometric.nn.conv.gcn_conv import gcn_norm
-from torch_geometric.nn.conv import GCNConv, GATConv, GINConv
+from torch_geometric.nn.conv import GCNConv, GATConv, GINConv, MessagePassing
+from torch_geometric.nn.inits import reset
+from torch_geometric.nn.norm import InstanceNorm
 from torch_geometric.nn.glob import global_mean_pool, global_add_pool, global_max_pool
 from torch_geometric.typing import Adj, OptTensor, Size, OptPairTensor
 from torch_geometric.utils import add_self_loops
@@ -40,6 +42,14 @@ def get_gnnNets(input_dim, output_dim, model_config):
             if param_name in model_config.param.keys()
         }
         return GATNet(input_dim=input_dim, output_dim=output_dim, **gat_model_params)
+    elif model_config.gnn_name.lower() == "gnn":
+        gnn_model_param_names = GNNNet.__init__.__code__.co_varnames
+        gnn_model_params = {
+            param_name: getattr(model_config.param, param_name)
+            for param_name in gnn_model_param_names
+            if param_name in model_config.param.keys()
+        }
+        return GNNNet(input_dim=input_dim, output_dim=output_dim, **gnn_model_params)
     else:
         raise ValueError(
             f"GNN name should be gcn " f"and {model_config.gnn_name} is not defined."
@@ -696,3 +706,157 @@ class GATNet(GNNBase):
 
         logits = self.mlps[-1](x)
         return logits
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class GNLayer(MessagePassing):
+    def __init__(self, indim, hiddendim, outdim, edgedim=0):
+        super(GNLayer, self).__init__()
+        self.in_channels = indim
+        self.hidden_channels = hiddendim
+        self.out_channels = outdim
+        self.edge_dim = edgedim
+        
+        self.edge_mlp = nn.Sequential(
+            nn.Linear(2 * indim + edgedim, hiddendim),
+            nn.PReLU(),
+            nn.Linear(hiddendim, hiddendim),
+            nn.PReLU(),
+        )
+        self.node_mlp = nn.Sequential(
+            nn.Linear(indim + hiddendim, hiddendim),
+            nn.PReLU(),
+            nn.Linear(hiddendim, outdim),
+        )
+
+    def reset_parameters(self):
+        super().reset_parameters()
+        reset(self.edge_mlp)
+        reset(self.node_mlp)
+
+    def forward(self, x, edge_index, edge_attr=None, size=None):
+        agg = self.propagate(edge_index, x=x, edge_attr=edge_attr, size=None)
+        agg = torch.cat([x, agg], dim=1)
+        out = self.node_mlp(agg)
+        return out
+    
+    def message(self, x_i, x_j, edge_attr=None):
+        if edge_attr is None:
+            out = torch.cat([x_i, x_j], dim=1)
+        else:
+            out = torch.cat([x_i, x_j, edge_attr], dim=1)
+        out = self.edge_mlp(out)
+        return out
+    
+    def propagate(self, edge_index: Adj, size: Size = None, **kwargs):
+        size = self.__check_input__(edge_index, size)
+
+        # Run "fused" message and aggregation (if applicable).
+        if (isinstance(edge_index, SparseTensor) and self.fuse
+                and not self.__explain__):
+            coll_dict = self.__collect__(self.__fused_user_args__, edge_index,
+                                         size, kwargs)
+
+            msg_aggr_kwargs = self.inspector.distribute(
+                'message_and_aggregate', coll_dict)
+            out = self.message_and_aggregate(edge_index, **msg_aggr_kwargs)
+
+            update_kwargs = self.inspector.distribute('update', coll_dict)
+            return self.update(out, **update_kwargs)
+
+        # Otherwise, run both functions in separation.
+        elif isinstance(edge_index, Tensor) or not self.fuse:
+            coll_dict = self.__collect__(self.__user_args__, edge_index, size,
+                                         kwargs)
+
+            msg_kwargs = self.inspector.distribute('message', coll_dict)
+            out = self.message(**msg_kwargs)
+
+            # For `GNNExplainer`, we require a separate message and aggregate
+            # procedure since this allows us to inject the `edge_mask` into the
+            # message passing computation scheme.
+            if self.__explain__:
+                edge_mask = self.__edge_mask__.sigmoid()
+                # Some ops add self-loops to `edge_index`. We need to do the
+                # same for `edge_mask` (but do not train those).
+                if out.size(self.node_dim) != edge_mask.size(0):
+                    loop = edge_mask.new_ones(size[0])
+                    edge_mask = torch.cat([edge_mask, loop], dim=0)
+                assert out.size(self.node_dim) == edge_mask.size(0)
+                out = out * edge_mask.view([-1] + [1] * (out.dim() - 1))
+
+            aggr_kwargs = self.inspector.distribute('aggregate', coll_dict)
+            out = self.aggregate(out, **aggr_kwargs)
+
+            update_kwargs = self.inspector.distribute('update', coll_dict)
+            return self.update(out, **update_kwargs)
+
+class GNBlock(nn.Module):
+    def __init__(self, indim, outdim, edgedim=0, act=None, norm=None):
+        super().__init__()
+        self.conv = GNLayer(indim, outdim, outdim, edgedim)
+        self.act = act
+        self.norm = norm
+
+    def forward(self, x, edge_index, edge_attr=None):
+        x = self.conv(x, edge_index, edge_attr)
+        if self.act:
+          x = self.act(x)
+        if self.norm:
+          x = self.norm(x)
+        return x
+
+class GNNNet(GNNBase):
+    def __init__(self, input_dim, output_dim, gnn_latent_dim, fc_latent_dim, edgedim=0):
+      super().__init__()
+      self.indim = input_dim
+      self.outdim = output_dim
+      self.gnn_latent_dim = gnn_latent_dim
+      self.fc_latent_dim = fc_latent_dim
+      self.edgedim = edgedim
+      self.conv1 = GNBlock(input_dim, gnn_latent_dim[0], edgedim, act=nn.PReLU(), norm=InstanceNorm(self.gnn_latent_dim[0]))
+      self.conv2 = GNBlock(gnn_latent_dim[0], gnn_latent_dim[1], edgedim, act=nn.PReLU(), norm=InstanceNorm(self.gnn_latent_dim[1]))
+      self.conv3 = GNBlock(gnn_latent_dim[1], gnn_latent_dim[2], edgedim, act=nn.PReLU(), norm=InstanceNorm(self.gnn_latent_dim[2]))
+      self.conv4 = GNBlock(gnn_latent_dim[2], gnn_latent_dim[3], edgedim, act=nn.PReLU(), norm=InstanceNorm(self.gnn_latent_dim[3]))
+      self.head = nn.Sequential(
+        nn.Linear(2*gnn_latent_dim[3], fc_latent_dim[0]),
+        nn.PReLU(),
+        nn.Linear(fc_latent_dim[0], output_dim),
+      )
+      self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+      if self.device != torch.device('cuda'):
+        print('WARNING: GPU not available. Using CPU instead.')
+      self.to(self.device)
+      self.optimizer = None
+      self.criterion = F.cross_entropy
+
+    def get_emb(self, *args, **kwargs):
+      x, edge_index, _ = self._argsparse(*args, **kwargs)
+      edge_attr = None
+      x = self.conv1(x, edge_index, edge_attr)
+      x = self.conv2(x, edge_index, edge_attr)
+      x = self.conv3(x, edge_index, edge_attr)
+      x = self.conv4(x, edge_index, edge_attr)
+      return x
+
+    def forward(self, *args, **kwargs):
+      _, _, batch = self._argsparse(*args, **kwargs)
+      x = self.get_emb(*args, **kwargs)
+      x = torch.cat([global_mean_pool(x, batch), global_max_pool(x, batch)], dim=1)
+      x = self.head(x)
+      return x
